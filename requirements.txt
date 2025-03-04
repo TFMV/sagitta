@@ -1,0 +1,5 @@
+pyarrow
+oracledb
+python-dotenv
+adbc-driver-postgresql
+pandas
