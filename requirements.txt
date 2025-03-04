@@ -3,3 +3,6 @@ oracledb
 python-dotenv
 adbc-driver-postgresql
 pandas
+polars
+matplotlib
+seaborn

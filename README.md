@@ -22,17 +22,20 @@ The latest performance metrics show the following breakdown:
 
 | Operation           | Time (seconds) | Percentage |
 |---------------------|----------------|------------|
-| Oracle connection   | 1.12           | 32.8%      |
-| Oracle data read    | 2.17           | 63.5%      |
-| Postgres connection | 0.08           | 2.4%       |
-| Postgres data write | 0.05           | 1.3%       |
-| **Total execution** | **3.41**       | **100%**   |
+| Oracle connection   | 0.50           | 60.6%      |
+| Oracle data read    | 0.03           | 3.8%       |
+| Postgres connection | 0.06           | 7.2%       |
+| Postgres data write | 0.01           | 0.9%       |
+| Polars DataFrame    | 0.02           | 2.3%       |
+| Polars Series       | 0.02           | 1.9%       |
+| Visualization       | 0.19           | 23.2%      |
+| **Total**           | **0.82**       | **100%**   |
 
-This demonstrates that most of the time is spent in Oracle operations (connection and data retrieval), while PostgreSQL operations are significantly faster. The Arrow-based data transfer to PostgreSQL is particularly efficient, taking only 1.3% of the total execution time.
+This demonstrates that most of the time is spent in Oracle connection operations (60.6%), while data processing operations are significantly faster. The Arrow-based data transfer to PostgreSQL is particularly efficient, taking less than 1% of the total execution time. Visualization operations account for 23.2% of the total time, making them the second most time-consuming component.
 
 ### Network Impact
 
-A significant portion of the Oracle operation time (96.3% of total execution) is due to network latency when connecting to Oracle Cloud Infrastructure (OCI). Local PostgreSQL operations are much faster by comparison. Potential optimizations include:
+A significant portion of the Oracle operation time is due to network latency when connecting to Oracle Cloud Infrastructure (OCI). Local PostgreSQL operations are much faster by comparison. Potential optimizations include:
 
 - Batch processing to amortize connection costs
 - Connection pooling for Oracle
@@ -50,11 +53,14 @@ A significant portion of the Oracle operation time (96.3% of total execution) is
 ## Dependencies
 
 ```bash
-oracledb
-pandas
 pyarrow
-adbc-driver-postgresql
+oracledb
 python-dotenv
+adbc-driver-postgresql
+pandas
+polars
+matplotlib
+seaborn
 ```
 
 ## Configuration
@@ -77,6 +83,70 @@ See .env.example for reference.
 - Environment-based configuration
 - Proper connection management and error handling
 - Structured logging
+- Polars integration for high-performance data analysis
+- Automatic data visualization with matplotlib and seaborn
+
+## Advanced Features
+
+### Polars Integration with Zero-Copy
+
+Sagitta includes integration with [Polars](https://pola.rs/), a lightning-fast DataFrame library written in Rust, using a zero-copy approach for maximum performance:
+
+```python
+# Extract data from Oracle directly to Polars using zero-copy approach
+with oracle_connection(oracle_cfg) as oracle_conn:
+    # Get data as a Polars DataFrame
+    customers_pl = ora_to_polars(oracle_conn, "SELECT * FROM customers")
+    
+    # Or get a single column as a Polars Series
+    customer_ids = ora_to_polars_series(oracle_conn, "SELECT customer_id FROM customers", "customer_id")
+    
+    # Perform high-performance data operations
+    filtered = customers_pl.filter(pl.col("status") == "ACTIVE")
+    aggregated = customers_pl.group_by("region").agg([
+        pl.count().alias("customer_count"),
+        pl.sum("total_spend").alias("revenue")
+    ])
+    
+    # Series operations
+    if (customer_ids > 0).all():
+        log_ids = customer_ids.log10()
+```
+
+#### Zero-Copy Data Flow
+
+The data flows through the system with minimal copying:
+
+1. Oracle → OracleDataFrame (using native Oracle Arrow support)
+2. OracleDataFrame → PyArrow Table/Array (zero-copy conversion)
+3. PyArrow → Polars DataFrame/Series (zero-copy conversion)
+
+This approach maximizes performance by avoiding unnecessary data copies between memory regions.
+
+#### Benefits of the Polars Integration
+
+- **Performance**: 10-100x faster than pandas for many operations
+- **Memory Efficiency**: Processes large datasets with minimal memory overhead
+- **Zero-Copy**: Maintains data in Arrow format throughout the pipeline
+- **Lazy Evaluation**: Supports deferred execution for complex query optimization
+- **Expressive API**: Provides a rich, intuitive interface for data manipulation
+
+### Automatic Visualization
+
+Sagitta can automatically generate visualizations from your data:
+
+```python
+# Generate visualizations from Polars DataFrame
+viz_path = visualize_data(customers_pl, "Customer Analysis")
+```
+
+The visualization engine:
+
+- Automatically detects appropriate chart types based on data
+- Creates correlation matrices for numeric columns
+- Generates distribution plots and histograms
+- Produces bar charts for categorical data
+- Saves visualizations to files for easy sharing
 
 ## Limitations
 
